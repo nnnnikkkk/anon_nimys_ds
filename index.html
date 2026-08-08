@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERMINAL // ACCESS_GRANTED</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #030303;
+            color: #00ff66;
+            font-family: 'Share Tech Mono', monospace;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Scanline effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 999;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* CRT flicker */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: rgba(18, 16, 16, 0.1);
+            opacity: 0;
+            z-index: 999;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.02795; }
+            50% { opacity: 0.08987; }
+            100% { opacity: 0.02795; }
+        }
+
+        #matrix-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .terminal-container {
+            position: relative;
+            z-index: 10;
+            width: 90%;
+            max-width: 700px;
+            background: rgba(0, 10, 2, 0.85);
+            border: 1px solid #00ff66;
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.2), inset 0 0 15px rgba(0, 255, 102, 0.1);
+            padding: 30px;
+            border-radius: 4px;
+        }
+
+        .header {
+            border-bottom: 1px dashed #00ff66;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            color: #00cc52;
+        }
+
+        .typing-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            min-height: 80px;
+            text-shadow: 0 0 5px rgba(0, 255, 102, 0.4);
+        }
+
+        .discord-btn {
+            display: block;
+            width: 100%;
+            background: transparent;
+            color: #00ff66;
+            border: 1px solid #00ff66;
+            padding: 15px;
+            text-align: center;
+            text-decoration: none;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.2rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .discord-btn:hover {
+            background: #00ff66;
+            color: #030303;
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.6);
+            text-shadow: none;
+        }
+
+        .status-bar {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #009933;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .blink {
+            animation: blink-anim 1s infinite;
+        }
+
+        @keyframes blink-anim {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="matrix-canvas"></canvas>
+
+    <div class="terminal-container">
+        <div class="header">
+            SECURE_NODE // PROTOCOL: v4.0.2 // STATUS: ENCRYPTED
+        </div>
+        
+        <div class="typing-text" id="text-output"></div>
+
+        <a href="https://discord.gg/4zcGHJe7RC" target="_blank" class="discord-btn">
+            [ ESTABLISH_CONNECTION_TO_DISCORD ]
+        </a>
+
+        <div class="status-bar">
+            <span>NODE: 127.0.0.1</span>
+            <span>SECURE_CHANNEL <span class="blink">_</span></span>
+        </div>
+    </div>
+
+    <script>
+        // Matrix Rain Background Effect
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const characters = '日ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ#@$%&<>?';
+        const fontSize = 14;
+        let columns = canvas.width / fontSize;
+        const drops = [];
+
+        for (let i = 0; i < columns; i++) {
+            drops[i] = 1;
+        }
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(3, 3, 3, 0.05)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#00ff66';
+            ctx.font = fontSize + 'px monospace';
+
+            for (let i = 0; i < drops.length; i++) {
+                const text = characters.charAt(Math.floor(Math.random() * characters.length));
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 33);
+
+        // Typing Effect for intro text
+        const messages = [
+            "INITIALIZING DEEP_WEB GATEWAY...",
+            "BYPASSING FIREWALL SURVEILLANCE...",
+            "SUCCESSFUL HANDSHAKE DETECTED.",
+            "WELCOME, OPERATOR. CLICK BELOW TO JOIN THE SECURED DISCORD NETWORK."
+        ];
+        
+        let msgIndex = 0;
+        let charIndex = 0;
+        const speed = 35;
+        const textElement = document.getElementById('text-output');
+
+        function typeWriter() {
+            if (msgIndex < messages.length) {
+                if (charIndex < messages[msgIndex].length) {
+                    textElement.innerHTML += messages[msgIndex].charAt(charIndex);
+                    charIndex++;
+                    setTimeout(typeWriter, speed);
+                } else {
+                    setTimeout(() => {
+                        textElement.innerHTML += "<br>";
+                        charIndex = 0;
+                        msgIndex++;
+                        typeWriter();
+                    }, 800);
+                }
+            }
+        }
+
+        setTimeout(typeWriter, 500);
+    </script>
+</body>
+</html>
